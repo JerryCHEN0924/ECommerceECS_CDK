@@ -29,12 +29,19 @@ public class ECommerceEcsCdkApp {
                 .env(environment)
                 .tags(infraTags)
                 .build());
+
         ClusterStack clusterStack = new ClusterStack(app, "Cluster", StackProps.builder()
                 .env(environment)
                 .tags(infraTags)
                 .build(), new ClusterStackProps(vpcStack.getVpc()));
-
         clusterStack.addDependency(vpcStack);
+
+        NlbStack nlbStack = new NlbStack(app,"Nlb",StackProps.builder()
+                .env(environment)
+                .tags(infraTags)
+                .build(),new NlbStackProps(vpcStack.getVpc()));
+        nlbStack.addDependency(vpcStack);
+
         app.synth();
     }
 }

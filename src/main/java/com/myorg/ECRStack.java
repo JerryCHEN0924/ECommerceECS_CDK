@@ -1,3 +1,6 @@
+/**
+ * Elastic Container Service Stack 容器管理服務。Stack
+ */
 package com.myorg;
 
 import software.amazon.awscdk.RemovalPolicy;
