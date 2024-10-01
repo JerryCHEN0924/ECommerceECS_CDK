@@ -36,11 +36,31 @@ public class ECommerceEcsCdkApp {
                 .build(), new ClusterStackProps(vpcStack.getVpc()));
         clusterStack.addDependency(vpcStack);
 
-        NlbStack nlbStack = new NlbStack(app,"Nlb",StackProps.builder()
+        NlbStack nlbStack = new NlbStack(app, "Nlb", StackProps.builder()
                 .env(environment)
                 .tags(infraTags)
-                .build(),new NlbStackProps(vpcStack.getVpc()));
+                .build(), new NlbStackProps(vpcStack.getVpc()));
         nlbStack.addDependency(vpcStack);
+
+        Map<String, String> productsServiceTags = new HashMap<>();
+        productsServiceTags.put("team", "Alpha");
+        productsServiceTags.put("cost", "ProductsServiceInfra");
+
+        ProductsServiceStack productsServiceStack = new ProductsServiceStack(app, "ProductsService",
+                StackProps.builder()
+                        .env(environment)
+                        .tags(productsServiceTags)
+                        .build(),
+                new ProductsServicePros(
+                        vpcStack.getVpc(),
+                        clusterStack.getCluster(),
+                        nlbStack.getNetworkLoadBalancer(),
+                        nlbStack.getApplicationLoadBalancer(),
+                        ecrStack.getProductsServiceRepository()));
+        productsServiceStack.addDependency(vpcStack);
+        productsServiceStack.addDependency(clusterStack);
+        productsServiceStack.addDependency(nlbStack);
+        productsServiceStack.addDependency(ecrStack);
 
         app.synth();
     }
