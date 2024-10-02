@@ -24,7 +24,7 @@ import software.constructs.Construct;
 import java.util.*;
 
 public class ProductsServiceStack extends Stack {
-    public ProductsServiceStack(final Construct scope, final String id, final StackProps props, ProductsServicePros productsServicePros) {
+    public ProductsServiceStack(final Construct scope, final String id, final StackProps props, ProductsServiceProps productsServicePros) {
         super(scope, id, props);
 
         //Fargate 是一種無伺服器容器運行方式，讓用戶不需要管理底層伺服器基礎設施，專注於容器的運行和管理。
@@ -125,7 +125,7 @@ public class ProductsServiceStack extends Stack {
     }
 }
 
-record ProductsServicePros(
+record ProductsServiceProps(
         Vpc vpc,
         Cluster cluster,
         NetworkLoadBalancer networkLoadBalancer,
