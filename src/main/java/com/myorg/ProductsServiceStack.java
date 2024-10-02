@@ -8,6 +8,7 @@ import software.amazon.awscdk.Duration;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
+import software.amazon.awscdk.services.dynamodb.*;
 import software.amazon.awscdk.services.ec2.Peer;
 import software.amazon.awscdk.services.ec2.Port;
 import software.amazon.awscdk.services.ec2.Vpc;
@@ -27,12 +28,28 @@ public class ProductsServiceStack extends Stack {
     public ProductsServiceStack(final Construct scope, final String id, final StackProps props, ProductsServiceProps productsServicePros) {
         super(scope, id, props);
 
+        //Dynamo DB
+        Table productDdb = new Table(this, "ProductsDdb", TableProps.builder()
+                .partitionKey(Attribute.builder()
+                        .name("id")
+                        .type(AttributeType.STRING)
+                        .build())//Ddb中定義PK Key的屬性名稱
+                .tableName("products")
+                .removalPolicy(RemovalPolicy.DESTROY) //注意Dynamo DB的預設刪除政策是保留(RETAIN)，因為跟資料的儲存有關係。
+                .billingMode(BillingMode.PROVISIONED) //建立具有一定容量的表
+                .readCapacity(1)
+                .writeCapacity(1)
+                .build());
+
         //Fargate 是一種無伺服器容器運行方式，讓用戶不需要管理底層伺服器基礎設施，專注於容器的運行和管理。
         FargateTaskDefinition fargateTaskDefinition = new FargateTaskDefinition(this, "TaskDefinition", FargateTaskDefinitionProps.builder()
                 .family("products-service")
                 .cpu(512)
                 .memoryLimitMiB(1024)
                 .build());
+
+        //定義任務中的應用程式可以讀取與寫入數據
+        productDdb.grantReadWriteData(fargateTaskDefinition.getTaskRole());
 
         AwsLogDriver awsLogDriver = new AwsLogDriver(AwsLogDriverProps.builder()
                 .logGroup(new LogGroup(this, "LogGroup", LogGroupProps.builder() //LogGroup可以理解為資料夾
@@ -44,7 +61,12 @@ public class ProductsServiceStack extends Stack {
                 .build());
 
         Map<String, String> envVariables = new HashMap<>();
+        //傳遞到應用程式中的環境變數
         envVariables.put("Server_PORT", "8080");
+        envVariables.put("AWS_PRODUCTSDDB_NAME", productDdb.getTableName());
+        envVariables.put("AWS_REGION", this.getRegion());
+
+
         fargateTaskDefinition.addContainer("ProductsServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
