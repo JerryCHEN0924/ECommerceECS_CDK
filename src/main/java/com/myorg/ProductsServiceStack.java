@@ -70,7 +70,7 @@ public class ProductsServiceStack extends Stack {
         fargateTaskDefinition.addContainer("ProductsServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.0.0"))
+                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.1.0"))
                         .containerName("productsService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
