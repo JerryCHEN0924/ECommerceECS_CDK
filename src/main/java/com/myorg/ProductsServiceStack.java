@@ -17,6 +17,7 @@ import software.amazon.awscdk.services.ecs.*;
 import software.amazon.awscdk.services.ecs.Protocol;
 import software.amazon.awscdk.services.elasticloadbalancingv2.*;
 import software.amazon.awscdk.services.elasticloadbalancingv2.HealthCheck;
+import software.amazon.awscdk.services.iam.ManagedPolicy;
 import software.amazon.awscdk.services.logs.LogGroup;
 import software.amazon.awscdk.services.logs.LogGroupProps;
 import software.amazon.awscdk.services.logs.RetentionDays;
@@ -65,12 +66,14 @@ public class ProductsServiceStack extends Stack {
         envVariables.put("Server_PORT", "8080");
         envVariables.put("AWS_PRODUCTSDDB_NAME", productDdb.getTableName());
         envVariables.put("AWS_REGION", this.getRegion());
-
+        envVariables.put("AWS_XRAY_DAEMON_ADDRESS", "0.0.0.0:2000");
+        envVariables.put("AWS_XRAY_CONTEXT_MISSING","IGNORE_ERROR");
+        envVariables.put("AWS_XRAY_TRACING_NAME","productsservice");
 
         fargateTaskDefinition.addContainer("ProductsServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.1.0"))
+                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.3.0"))
                         .containerName("productsService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
@@ -78,7 +81,30 @@ public class ProductsServiceStack extends Stack {
                                 .protocol(Protocol.TCP)
                                 .build()))
                         .environment(envVariables) //這個環境變數會傳遞到products應用程式中，作為port或其他變數使用。
+                        .cpu(384)
+                        .memoryLimitMiB(896)
                         .build()); //新增一個容器
+
+        //為AWS X-Ray單獨分配一個容器，不應該把AWS X-Ray放入其他容器，會造成爭奪資源的情況。
+        fargateTaskDefinition.addContainer("xray", ContainerDefinitionOptions.builder()
+                        .image(ContainerImage.fromRegistry("public.ecr.aws/xray/aws-xray-dae    mon:latest"))
+                        .containerName("XRayProductsService")
+                        .logging(new AwsLogDriver(AwsLogDriverProps.builder()
+                                .logGroup(new LogGroup(this,"XRayLogGroup", LogGroupProps.builder()
+                                        .logGroupName("XRayProductsService")
+                                        .removalPolicy(RemovalPolicy.DESTROY)
+                                        .retention(RetentionDays.ONE_MONTH)
+                                        .build()))
+                                .streamPrefix("XRayProductsService")
+                                .build()))
+                        .portMappings(Collections.singletonList(PortMapping.builder()
+                                        .containerPort(2000)
+                                        .protocol(Protocol.UDP)
+                                .build()))
+                        .cpu(128)
+                        .memoryLimitMiB(128)
+                .build());
+        fargateTaskDefinition.getTaskRole().addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName("AWSXrayWriteOnlyAccess"));
 
         //建立應用程式監聽器
         ApplicationListener applicationListener = productsServicePros.applicationLoadBalancer()
