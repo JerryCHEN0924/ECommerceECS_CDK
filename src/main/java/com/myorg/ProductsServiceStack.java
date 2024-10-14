@@ -69,11 +69,12 @@ public class ProductsServiceStack extends Stack {
         envVariables.put("AWS_XRAY_DAEMON_ADDRESS", "0.0.0.0:2000");
         envVariables.put("AWS_XRAY_CONTEXT_MISSING","IGNORE_ERROR");
         envVariables.put("AWS_XRAY_TRACING_NAME","productsservice");
+        envVariables.put("LOGGING_LEVEL_ROOT","INFO");
 
         fargateTaskDefinition.addContainer("ProductsServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.3.0"))
+                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.4.0"))
                         .containerName("productsService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
