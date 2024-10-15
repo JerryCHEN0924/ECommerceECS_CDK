@@ -7,16 +7,13 @@ import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.apigateway.*;
-import software.amazon.awscdk.services.ec2.Vpc;
-import software.amazon.awscdk.services.ecr.Repository;
-import software.amazon.awscdk.services.ecs.Cluster;
-import software.amazon.awscdk.services.elasticloadbalancingv2.ApplicationLoadBalancer;
 import software.amazon.awscdk.services.elasticloadbalancingv2.NetworkLoadBalancer;
 import software.amazon.awscdk.services.logs.LogGroup;
 import software.amazon.awscdk.services.logs.LogGroupProps;
 import software.amazon.awscdk.services.logs.RetentionDays;
 import software.constructs.Construct;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -84,6 +81,51 @@ public class ApiStack extends Stack {
                         .requestParameters(productsMethodParameters)
                         .build()
         );
+        RequestValidator productRequestValidator = new RequestValidator(this, "ProductRequestValidator",
+                RequestValidatorProps.builder()
+                        .restApi(restApi)
+                        .requestValidatorName("Product request validator")
+                        .validateRequestBody(true)
+                        .build());
+
+        Map<String, JsonSchema> productModelProperties = new HashMap<>();
+        productModelProperties.put("name", JsonSchema.builder()
+                .type(JsonSchemaType.STRING)
+                .minimum(5)
+                .maximum(50)
+                .build());
+
+        productModelProperties.put("code", JsonSchema.builder()
+                .type(JsonSchemaType.STRING)
+                .minimum(5)
+                .maximum(15)
+                .build());
+
+        productModelProperties.put("model", JsonSchema.builder()
+                .type(JsonSchemaType.STRING)
+                .minimum(5)
+                .maximum(15)
+                .build());
+
+        productModelProperties.put("price", JsonSchema.builder()
+                .type(JsonSchemaType.NUMBER)
+                .minimum(10.0)
+                .maximum(1000.0)
+                .build());
+
+        Model productModel = new Model(this, "ProductModel", ModelProps.builder()
+                .modelName("ProductModel")
+                .restApi(restApi)
+                .contentType("application/json")
+                .schema(JsonSchema.builder()
+                        .type(JsonSchemaType.OBJECT)
+                        .properties(productModelProperties)
+                        .required(Arrays.asList("name", "code"))
+                        .build())
+                .build());
+
+        Map<String, Model> productRequestModel = new HashMap<>();
+        productRequestModel.put("application/json", productModel);
 
         // POST /products
         productResource.addMethod("POST", new Integration(
@@ -100,6 +142,8 @@ public class ApiStack extends Stack {
                                 .build()),
                 MethodOptions.builder()
                         .requestParameters(productsMethodParameters)
+                        .requestValidator(productRequestValidator)
+                        .requestModels(productRequestModel)
                         .build());
 
         // PUT /products/{id}
@@ -126,6 +170,8 @@ public class ApiStack extends Stack {
                                 .build()),
                 MethodOptions.builder()
                         .requestParameters(productsMethodParameters) //加入檢查是否帶參數，API GATEWAY在此做第一次驗證。
+                        .requestValidator(productRequestValidator)
+                        .requestModels(productRequestModel)
                         .build());
 
         // GET /products/{id}
