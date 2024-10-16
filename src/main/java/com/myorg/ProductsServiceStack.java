@@ -42,6 +42,17 @@ public class ProductsServiceStack extends Stack {
                 .writeCapacity(1)
                 .build());
 
+        productDdb.addGlobalSecondaryIndex(GlobalSecondaryIndexProps.builder()
+                .indexName("codeIdx")
+                .partitionKey(Attribute.builder()
+                        .name("code")
+                        .type(AttributeType.STRING)
+                        .build())
+                .projectionType(ProjectionType.KEYS_ONLY)
+                .readCapacity(1)
+                .writeCapacity(1)
+                .build());
+
         //Fargate 是一種無伺服器容器運行方式，讓用戶不需要管理底層伺服器基礎設施，專注於容器的運行和管理。
         FargateTaskDefinition fargateTaskDefinition = new FargateTaskDefinition(this, "TaskDefinition", FargateTaskDefinitionProps.builder()
                 .family("products-service")
@@ -67,14 +78,14 @@ public class ProductsServiceStack extends Stack {
         envVariables.put("AWS_PRODUCTSDDB_NAME", productDdb.getTableName());
         envVariables.put("AWS_REGION", this.getRegion());
         envVariables.put("AWS_XRAY_DAEMON_ADDRESS", "0.0.0.0:2000");
-        envVariables.put("AWS_XRAY_CONTEXT_MISSING","IGNORE_ERROR");
-        envVariables.put("AWS_XRAY_TRACING_NAME","productsservice");
-        envVariables.put("LOGGING_LEVEL_ROOT","INFO");
+        envVariables.put("AWS_XRAY_CONTEXT_MISSING", "IGNORE_ERROR");
+        envVariables.put("AWS_XRAY_TRACING_NAME", "productsservice");
+        envVariables.put("LOGGING_LEVEL_ROOT", "INFO");
 
         fargateTaskDefinition.addContainer("ProductsServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.5.0"))
+                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.6.0"))
                         .containerName("productsService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
@@ -88,22 +99,22 @@ public class ProductsServiceStack extends Stack {
 
         //為AWS X-Ray單獨分配一個容器，不應該把AWS X-Ray放入其他容器，會造成爭奪資源的情況。
         fargateTaskDefinition.addContainer("xray", ContainerDefinitionOptions.builder()
-                        .image(ContainerImage.fromRegistry("public.ecr.aws/xray/aws-xray-dae    mon:latest"))
-                        .containerName("XRayProductsService")
-                        .logging(new AwsLogDriver(AwsLogDriverProps.builder()
-                                .logGroup(new LogGroup(this,"XRayLogGroup", LogGroupProps.builder()
-                                        .logGroupName("XRayProductsService")
-                                        .removalPolicy(RemovalPolicy.DESTROY)
-                                        .retention(RetentionDays.ONE_MONTH)
-                                        .build()))
-                                .streamPrefix("XRayProductsService")
+                .image(ContainerImage.fromRegistry("public.ecr.aws/xray/aws-xray-dae    mon:latest"))
+                .containerName("XRayProductsService")
+                .logging(new AwsLogDriver(AwsLogDriverProps.builder()
+                        .logGroup(new LogGroup(this, "XRayLogGroup", LogGroupProps.builder()
+                                .logGroupName("XRayProductsService")
+                                .removalPolicy(RemovalPolicy.DESTROY)
+                                .retention(RetentionDays.ONE_MONTH)
                                 .build()))
-                        .portMappings(Collections.singletonList(PortMapping.builder()
-                                        .containerPort(2000)
-                                        .protocol(Protocol.UDP)
-                                .build()))
-                        .cpu(128)
-                        .memoryLimitMiB(128)
+                        .streamPrefix("XRayProductsService")
+                        .build()))
+                .portMappings(Collections.singletonList(PortMapping.builder()
+                        .containerPort(2000)
+                        .protocol(Protocol.UDP)
+                        .build()))
+                .cpu(128)
+                .memoryLimitMiB(128)
                 .build());
         fargateTaskDefinition.getTaskRole().addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName("AWSXrayWriteOnlyAccess"));
 

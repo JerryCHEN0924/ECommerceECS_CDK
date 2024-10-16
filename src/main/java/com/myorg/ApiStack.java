@@ -59,12 +59,14 @@ public class ApiStack extends Stack {
         productsIntegrationParameters.put("integration.request.header.requestId", "context.requestId");
 
         Map<String, Boolean> productsMethodParameters = new HashMap<>();
-        productsMethodParameters.put("method.request.header", false);
+        productsMethodParameters.put("method.request.header.requestId", false);
+        productsMethodParameters.put("method.request.querystring.code", false);
 
         // /products
         Resource productResource = restApi.getRoot().addResource("products");
 
         // GET /products
+        // GET /products?code=CODE1
         productResource.addMethod("GET", new Integration(
                         IntegrationProps.builder()
                                 .type(IntegrationType.HTTP_PROXY)
