@@ -21,13 +21,32 @@ import software.amazon.awscdk.services.iam.ManagedPolicy;
 import software.amazon.awscdk.services.logs.LogGroup;
 import software.amazon.awscdk.services.logs.LogGroupProps;
 import software.amazon.awscdk.services.logs.RetentionDays;
+import software.amazon.awscdk.services.sns.Topic;
+import software.amazon.awscdk.services.sns.TopicProps;
+import software.amazon.awscdk.services.sns.subscriptions.EmailSubscription;
+import software.amazon.awscdk.services.sns.subscriptions.EmailSubscriptionProps;
 import software.constructs.Construct;
 
 import java.util.*;
 
 public class ProductsServiceStack extends Stack {
+    private final Topic productsEventsTopic;
+
     public ProductsServiceStack(final Construct scope, final String id, final StackProps props, ProductsServiceProps productsServicePros) {
         super(scope, id, props);
+
+        //Topic
+        this.productsEventsTopic = new Topic(this, "ProductEventsTopic", TopicProps.builder()
+                .displayName("Product events topic")
+                .topicName("products-events")
+                .build());
+
+        //TODO - to removed feature
+        this.productsEventsTopic.addSubscription(new EmailSubscription("jk2455892@gmail.com",
+                EmailSubscriptionProps.builder()
+                        .json(true)
+                        .build()
+        ));
 
         //Dynamo DB
         Table productDdb = new Table(this, "ProductsDdb", TableProps.builder()
@@ -62,6 +81,7 @@ public class ProductsServiceStack extends Stack {
 
         //定義任務中的應用程式可以讀取與寫入數據
         productDdb.grantReadWriteData(fargateTaskDefinition.getTaskRole());
+        this.productsEventsTopic.grantPublish(fargateTaskDefinition.getTaskRole());
 
         AwsLogDriver awsLogDriver = new AwsLogDriver(AwsLogDriverProps.builder()
                 .logGroup(new LogGroup(this, "LogGroup", LogGroupProps.builder() //LogGroup可以理解為資料夾
@@ -76,6 +96,7 @@ public class ProductsServiceStack extends Stack {
         //傳遞到應用程式中的環境變數
         envVariables.put("Server_PORT", "8080");
         envVariables.put("AWS_PRODUCTSDDB_NAME", productDdb.getTableName());
+        envVariables.put("AWS_SNS_TOPIC_PRODUCT_EVENTS", this.productsEventsTopic.getTopicArn());
         envVariables.put("AWS_REGION", this.getRegion());
         envVariables.put("AWS_XRAY_DAEMON_ADDRESS", "0.0.0.0:2000");
         envVariables.put("AWS_XRAY_CONTEXT_MISSING", "IGNORE_ERROR");
@@ -85,7 +106,7 @@ public class ProductsServiceStack extends Stack {
         fargateTaskDefinition.addContainer("ProductsServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.6.0"))
+                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.8.0"))
                         .containerName("productsService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
@@ -182,6 +203,10 @@ public class ProductsServiceStack extends Stack {
                                         .protocol(Protocol.TCP)
                                         .build())))
                         .build());
+    }
+
+    public Topic getProductsEventsTopic() {
+        return productsEventsTopic;
     }
 }
 
