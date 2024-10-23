@@ -32,7 +32,7 @@ import java.util.*;
 public class ProductsServiceStack extends Stack {
     private final Topic productsEventsTopic;
 
-    public ProductsServiceStack(final Construct scope, final String id, final StackProps props, ProductsServiceProps productsServicePros) {
+    public ProductsServiceStack(final Construct scope, final String id, final StackProps props, ProductsServiceProps productsServiceProps) {
         super(scope, id, props);
 
         //Topic
@@ -41,12 +41,12 @@ public class ProductsServiceStack extends Stack {
                 .topicName("products-events")
                 .build());
 
-        //TODO - to removed feature
-        this.productsEventsTopic.addSubscription(new EmailSubscription("jk2455892@gmail.com",
-                EmailSubscriptionProps.builder()
-                        .json(true)
-                        .build()
-        ));
+        //TODO - to removed feature，這邊是還沒建立SQS時暫時用email作為訂閱者，加入SQS後就可移除。
+//        this.productsEventsTopic.addSubscription(new EmailSubscription("jk2455892@gmail.com",
+//                EmailSubscriptionProps.builder()
+//                        .json(true)
+//                        .build()
+//        ));
 
         //Dynamo DB
         Table productDdb = new Table(this, "ProductsDdb", TableProps.builder()
@@ -106,7 +106,7 @@ public class ProductsServiceStack extends Stack {
         fargateTaskDefinition.addContainer("ProductsServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(productsServicePros.repository(), "1.8.0"))
+                        .image(ContainerImage.fromEcrRepository(productsServiceProps.repository(), "1.8.0"))
                         .containerName("productsService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
@@ -140,18 +140,18 @@ public class ProductsServiceStack extends Stack {
         fargateTaskDefinition.getTaskRole().addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName("AWSXrayWriteOnlyAccess"));
 
         //建立應用程式監聽器
-        ApplicationListener applicationListener = productsServicePros.applicationLoadBalancer()
+        ApplicationListener applicationListener = productsServiceProps.applicationLoadBalancer()
                 .addListener("ProductsServiceAlbListener", ApplicationListenerProps.builder()
                         .port(8080)
                         .protocol(ApplicationProtocol.HTTP)
-                        .loadBalancer(productsServicePros.applicationLoadBalancer())
+                        .loadBalancer(productsServiceProps.applicationLoadBalancer())
                         .build());
 
         //透過fargateTaskDefinition，建立Fargate。
         FargateService fargateService = new FargateService(this, "ProductsService",
                 FargateServiceProps.builder()
                         .serviceName("ProductsService")
-                        .cluster(productsServicePros.cluster())
+                        .cluster(productsServiceProps.cluster())
                         .taskDefinition(fargateTaskDefinition)
                         .desiredCount(2) //欲建立的實例數量
                         //DO NOT DO THIS IN PROD!!
@@ -161,10 +161,11 @@ public class ProductsServiceStack extends Stack {
         所有在AWS中的資源，即便都屬於你，但彼此溝通還是必須設定開通權限。
         所以要設定可以去ECR取得image
          */
-        productsServicePros.repository().grantPull(Objects.requireNonNull(fargateTaskDefinition.getExecutionRole()));
+        productsServiceProps.repository().grantPull(Objects.requireNonNull(fargateTaskDefinition.getExecutionRole()));
 
         //接受任何來自IP位址的任何內容，且在服務中設定TCP 8080 port來接收通訊傳入的請求。
-        fargateService.getConnections().getSecurityGroups().get(0).addIngressRule(Peer.anyIpv4(), Port.tcp(8080));
+        fargateService.getConnections().getSecurityGroups().get(0).addIngressRule(Peer.ipv4(productsServiceProps
+                .vpc().getVpcCidrBlock()), Port.tcp(8080));
 
         //建立監聽器目標:，確認健康狀態。
         applicationListener.addTargets("ProductsServiceAlbTarget",
@@ -185,7 +186,7 @@ public class ProductsServiceStack extends Stack {
         );
 
         //建立NetworkListener
-        NetworkListener networkListener = productsServicePros.networkLoadBalancer()
+        NetworkListener networkListener = productsServiceProps.networkLoadBalancer()
                 .addListener("ProductsServiceNlbListener", BaseNetworkListenerProps.builder()
                         .port(8080)
                         .protocol(software.amazon.awscdk.services.elasticloadbalancingv2.Protocol.TCP)
