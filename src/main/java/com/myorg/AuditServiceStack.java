@@ -4,6 +4,7 @@ import software.amazon.awscdk.Duration;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
+import software.amazon.awscdk.services.dynamodb.*;
 import software.amazon.awscdk.services.ec2.Peer;
 import software.amazon.awscdk.services.ec2.Port;
 import software.amazon.awscdk.services.ec2.Vpc;
@@ -33,6 +34,24 @@ public class AuditServiceStack extends Stack {
     public AuditServiceStack(final Construct scope, final String id,
                              final StackProps props, AuditServiceProps auditServiceProps) {
         super(scope, id, props);
+        //建立events Dynamo DB 並使用複合主鍵
+        Table eventsDdb = new Table(this, "EventsDdb", TableProps.builder()
+                .tableName("events")
+                .removalPolicy(RemovalPolicy.DESTROY)
+                .partitionKey(Attribute.builder()
+                        .name("pk")
+                        .type(AttributeType.STRING)
+                        .build())
+                .sortKey(Attribute.builder()
+                        .name("sk")
+                        .type(AttributeType.STRING)
+                        .build())
+                .timeToLiveAttribute("ttl")
+                .billingMode(BillingMode.PROVISIONED)
+                .readCapacity(1)
+                .writeCapacity(1)
+                .build());
+
         //建立AWS SQS
         Queue productEventsDlq = new Queue(this, "ProductEventsDlq",
                 QueueProps.builder()
@@ -97,6 +116,7 @@ public class AuditServiceStack extends Stack {
                 ManagedPolicy.fromAwsManagedPolicyName("AWSXrayWriteOnlyAccess"));
         productEventsQueue.grantConsumeMessages(fargateTaskDefinition.getTaskRole());
         productFailureEventsQueue.grantConsumeMessages(fargateTaskDefinition.getTaskRole());
+        eventsDdb.grantReadWriteData(fargateTaskDefinition.getTaskRole());
 
         AwsLogDriver awsLogDriver = new AwsLogDriver(AwsLogDriverProps.builder()
                 .logGroup(new LogGroup(this, "LogGroup", LogGroupProps.builder() //LogGroup可以理解為資料夾
@@ -116,12 +136,13 @@ public class AuditServiceStack extends Stack {
         envVariables.put("AWS_XRAY_TRACING_NAME", "auditservice");
         envVariables.put("AWS_SQS_QUEUE_PRODUCT_EVENTS_URL", productEventsQueue.getQueueUrl());
         envVariables.put("AWS_SQS_QUEUE_PRODUCT_FAILURE_EVENTS_URL", productFailureEventsQueue.getQueueUrl());
+        envVariables.put("AWS_EVENTS_DDB", eventsDdb.getTableName());
         envVariables.put("LOGGING_LEVEL_ROOT", "INFO");
 
         fargateTaskDefinition.addContainer("AuditServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(auditServiceProps.repository(), "1.2.0"))
+                        .image(ContainerImage.fromEcrRepository(auditServiceProps.repository(), "1.4.0"))
                         .containerName("auditService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
