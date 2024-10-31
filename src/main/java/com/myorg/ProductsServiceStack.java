@@ -8,6 +8,7 @@ import software.amazon.awscdk.Duration;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
+import software.amazon.awscdk.services.applicationautoscaling.EnableScalingProps;
 import software.amazon.awscdk.services.dynamodb.*;
 import software.amazon.awscdk.services.ec2.Peer;
 import software.amazon.awscdk.services.ec2.Port;
@@ -70,6 +71,42 @@ public class ProductsServiceStack extends Stack {
                 .projectionType(ProjectionType.KEYS_ONLY)
                 .readCapacity(1)
                 .writeCapacity(1)
+                .build());
+
+        // dynamo開啟autoscaling自動縮放功能
+        IScalableTableAttribute readScale = productDdb
+                .autoScaleReadCapacity(software.amazon.awscdk.services.dynamodb.EnableScalingProps.builder()
+                        .maxCapacity(4)
+                        .minCapacity(1)
+                        .build());
+        // 根據使用率來啟用自動縮放
+        readScale.scaleOnUtilization(UtilizationScalingProps.builder()
+                .targetUtilizationPercent(10)
+                .scaleInCooldown(Duration.seconds(20))
+                .scaleOutCooldown(Duration.seconds(20))
+                .build());
+
+        IScalableTableAttribute writeScale = productDdb
+                .autoScaleWriteCapacity(software.amazon.awscdk.services.dynamodb.EnableScalingProps.builder()
+                        .maxCapacity(4)
+                        .minCapacity(1)
+                        .build());
+        writeScale.scaleOnUtilization(UtilizationScalingProps.builder()
+                .targetUtilizationPercent(10)
+                .scaleInCooldown(Duration.seconds(20))
+                .scaleOutCooldown(Duration.seconds(20))
+                .build());
+
+        IScalableTableAttribute readIndexScale = productDdb
+                .autoScaleGlobalSecondaryIndexReadCapacity("codeIdx",
+                        software.amazon.awscdk.services.dynamodb.EnableScalingProps.builder()
+                                .maxCapacity(4)
+                                .minCapacity(1)
+                                .build());
+        readIndexScale.scaleOnUtilization(UtilizationScalingProps.builder()
+                .targetUtilizationPercent(10)
+                .scaleInCooldown(Duration.seconds(20))
+                .scaleOutCooldown(Duration.seconds(20))
                 .build());
 
         //Fargate 是一種無伺服器容器運行方式，讓用戶不需要管理底層伺服器基礎設施，專注於容器的運行和管理。
@@ -203,6 +240,19 @@ public class ProductsServiceStack extends Stack {
                                         .containerPort(8080)
                                         .protocol(Protocol.TCP)
                                         .build())))
+                        .build()
+        );
+        ScalableTaskCount scalableTaskCount = fargateService.autoScaleTaskCount(
+                EnableScalingProps.builder()
+                        .maxCapacity(4) //最大實例數目
+                        .minCapacity(2) //最小實例數目
+                        .build()
+        );
+        scalableTaskCount.scaleOnCpuUtilization("ProductsServiceAutoScaling",
+                CpuUtilizationScalingProps.builder()
+                        .targetUtilizationPercent(10) //只要CPU使用10%就開始擴張
+                        .scaleInCooldown(Duration.seconds(60)) //條件超過1分鐘就開始擴張
+                        .scaleOutCooldown(Duration.seconds(60)) //條件超過1分鐘就開始縮小
                         .build());
     }
 

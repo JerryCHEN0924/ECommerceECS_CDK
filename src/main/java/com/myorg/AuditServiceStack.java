@@ -4,6 +4,7 @@ import software.amazon.awscdk.Duration;
 import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
+import software.amazon.awscdk.services.applicationautoscaling.EnableScalingProps;
 import software.amazon.awscdk.services.dynamodb.*;
 import software.amazon.awscdk.services.ec2.Peer;
 import software.amazon.awscdk.services.ec2.Port;
@@ -142,7 +143,7 @@ public class AuditServiceStack extends Stack {
         fargateTaskDefinition.addContainer("AuditServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(auditServiceProps.repository(), "1.4.0"))
+                        .image(ContainerImage.fromEcrRepository(auditServiceProps.repository(), "1.5.0"))
                         .containerName("auditService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
@@ -241,6 +242,18 @@ public class AuditServiceStack extends Stack {
                                         .build())))
                         .build());
 
+        ScalableTaskCount scalableTaskCount = fargateService.autoScaleTaskCount(
+                EnableScalingProps.builder()
+                        .maxCapacity(4)
+                        .minCapacity(2)
+                        .build()
+        );
+        scalableTaskCount.scaleOnCpuUtilization("AuditServiceAutoScaling",
+                CpuUtilizationScalingProps.builder()
+                        .targetUtilizationPercent(10)
+                        .scaleInCooldown(Duration.seconds(60))
+                        .scaleOutCooldown(Duration.seconds(60))
+                        .build());
     }
 }
 
