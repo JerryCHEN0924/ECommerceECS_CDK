@@ -57,9 +57,10 @@ public class ProductsServiceStack extends Stack {
                         .build())//Ddb中定義PK Key的屬性名稱
                 .tableName("products")
                 .removalPolicy(RemovalPolicy.DESTROY) //注意Dynamo DB的預設刪除政策是保留(RETAIN)，因為跟資料的儲存有關係。
-                .billingMode(BillingMode.PROVISIONED) //建立具有一定容量的表
-                .readCapacity(1)
-                .writeCapacity(1)
+//                .billingMode(BillingMode.PROVISIONED) //建立具有一定容量的表provisioned mode
+                .billingMode(BillingMode.PAY_PER_REQUEST) //建立on-demand mode依照實際流量計費
+//                .readCapacity(1)
+//                .writeCapacity(1)
                 .build());
 
         productDdb.addGlobalSecondaryIndex(GlobalSecondaryIndexProps.builder()
@@ -69,10 +70,11 @@ public class ProductsServiceStack extends Stack {
                         .type(AttributeType.STRING)
                         .build())
                 .projectionType(ProjectionType.KEYS_ONLY)
-                .readCapacity(1)
-                .writeCapacity(1)
+//                .readCapacity(1)
+//                .writeCapacity(1)
                 .build());
 
+        /*
         // dynamo開啟autoscaling自動縮放功能
         IScalableTableAttribute readScale = productDdb
                 .autoScaleReadCapacity(software.amazon.awscdk.services.dynamodb.EnableScalingProps.builder()
@@ -108,6 +110,7 @@ public class ProductsServiceStack extends Stack {
                 .scaleInCooldown(Duration.seconds(20))
                 .scaleOutCooldown(Duration.seconds(20))
                 .build());
+*/
 
         //Fargate 是一種無伺服器容器運行方式，讓用戶不需要管理底層伺服器基礎設施，專注於容器的運行和管理。
         FargateTaskDefinition fargateTaskDefinition = new FargateTaskDefinition(this, "TaskDefinition", FargateTaskDefinitionProps.builder()

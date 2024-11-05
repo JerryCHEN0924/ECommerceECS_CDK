@@ -51,10 +51,53 @@ public class ApiStack extends Stack {
                         .build())
                 .build());
 
-        this.createProductsResource(restApi, apiStackPros);
+        Resource productsResource = this.createProductsResource(restApi, apiStackPros);
+
+        this.createProductEventsResource(restApi, apiStackPros, productsResource);
     }
 
-    private void createProductsResource(RestApi restApi, ApiStackProps apiStackProps) {
+    private void createProductEventsResource(RestApi restApi, ApiStackProps apiStackProps,
+                                             Resource productResource) {
+        // product/events
+        Resource productEventsResource = productResource.addResource("events");
+
+        Map<String, String> productsEventsIntegrationParameters = new HashMap<>();
+        productsEventsIntegrationParameters.put("integration.request.header.requestId", "context.requestId");
+
+        Map<String, Boolean> productsEventsMethodParameters = new HashMap<>();
+        productsEventsMethodParameters.put("method.request.header.requestId", false);
+        productsEventsMethodParameters.put("method.request.querystring.eventType", true);
+        productsEventsMethodParameters.put("method.request.querystring.limit", false);
+        productsEventsMethodParameters.put("method.request.querystring.from", false);
+        productsEventsMethodParameters.put("method.request.querystring.to", false);
+        productsEventsMethodParameters.put("method.request.querystring.exclusiveStartTimestamp", false);
+
+        // GET /products/events?eventType=PRODUCT_CREATE&limit=10&from=1&to=5&exclusiveStartTimestamp=123
+        productEventsResource.addMethod("GET", new Integration(
+                        IntegrationProps.builder()
+                                .type(IntegrationType.HTTP_PROXY)
+                                .integrationHttpMethod("GET")
+                                .uri("http://" + apiStackProps.networkLoadBalancer().getLoadBalancerDnsName() +
+                                        ":9090/api/products/events")
+                                .options(IntegrationOptions.builder()
+                                        .vpcLink(apiStackProps.vpcLink())
+                                        .connectionType(ConnectionType.VPC_LINK)
+                                        .requestParameters(productsEventsIntegrationParameters)
+                                        .build())
+                                .build()),
+                MethodOptions.builder()
+                        .requestValidator(new RequestValidator(this, "ProductEventsValidator",
+                                RequestValidatorProps.builder()
+                                        .restApi(restApi)
+                                        .requestValidatorName("ProductEventsValidator")
+                                        .validateRequestParameters(true)
+                                        .build()))
+                        .requestParameters(productsEventsMethodParameters)
+                        .build()
+        );
+    }
+
+    private Resource createProductsResource(RestApi restApi, ApiStackProps apiStackProps) {
         Map<String, String> productsIntegrationParameters = new HashMap<>();
         productsIntegrationParameters.put("integration.request.header.requestId", "context.requestId");
 
@@ -83,6 +126,7 @@ public class ApiStack extends Stack {
                         .requestParameters(productsMethodParameters)
                         .build()
         );
+
         RequestValidator productRequestValidator = new RequestValidator(this, "ProductRequestValidator",
                 RequestValidatorProps.builder()
                         .restApi(restApi)
@@ -207,6 +251,8 @@ public class ApiStack extends Stack {
                         .build()), MethodOptions.builder()
                 .requestParameters(productIdMethodParameters) //加入檢查是否帶參數，API GATEWAY在此做第一次驗證。
                 .build());
+
+        return productResource;
     }
 }
 

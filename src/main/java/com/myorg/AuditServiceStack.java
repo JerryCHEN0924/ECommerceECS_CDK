@@ -48,9 +48,10 @@ public class AuditServiceStack extends Stack {
                         .type(AttributeType.STRING)
                         .build())
                 .timeToLiveAttribute("ttl")
-                .billingMode(BillingMode.PROVISIONED)
-                .readCapacity(1)
-                .writeCapacity(1)
+                .billingMode(BillingMode.PROVISIONED) //建立具有一定容量的表provisioned mode
+                .billingMode(BillingMode.PAY_PER_REQUEST) //建立on-demand mode依照實際流量計費
+//                .readCapacity(1)
+//                .writeCapacity(1)
                 .build());
 
         //建立AWS SQS
@@ -143,7 +144,7 @@ public class AuditServiceStack extends Stack {
         fargateTaskDefinition.addContainer("AuditServiceContainer",
                 ContainerDefinitionOptions.builder()
                         //定義image映像位置與版本號，此範例中是使用存放於AWS ECR中的Image。
-                        .image(ContainerImage.fromEcrRepository(auditServiceProps.repository(), "1.5.0"))
+                        .image(ContainerImage.fromEcrRepository(auditServiceProps.repository(), "1.6.0"))
                         .containerName("auditService")
                         .logging(awsLogDriver) //將log儲存到CloudWatch
                         .portMappings(Collections.singletonList(PortMapping.builder()
