@@ -15,6 +15,7 @@ public class ECRStack extends Stack {
 
     private final Repository productsServiceRepository;
     private final Repository auditServiceRepository;
+    private final Repository invoicesServiceRepository;
 
     public ECRStack(final Construct scope, final String id, final StackProps props) {
         super(scope, id, props);
@@ -32,6 +33,13 @@ public class ECRStack extends Stack {
                 .imageTagMutability(TagMutability.IMMUTABLE)//若tag版本號未修改，但這個image有異動，則上傳時可覆蓋原Image。
                 .emptyOnDelete(true)//如果ECR被刪除，則自動刪除image。
                 .build());
+
+        this.invoicesServiceRepository = new Repository(this, "InvoicesService", RepositoryProps.builder()
+                .repositoryName("invoicesservice")//這個Name必須跟image的名稱一樣
+                .removalPolicy(RemovalPolicy.DESTROY) //刪除Stack時，REPO也會跟著被刪除。如未設定RemovalPolicy.DESTROY，預設是RETAIN
+                .imageTagMutability(TagMutability.IMMUTABLE)//若tag版本號未修改，但這個image有異動，則上傳時可覆蓋原Image。
+                .emptyOnDelete(true)//如果ECR被刪除，則自動刪除image。
+                .build());
     }
 
     public Repository getProductsServiceRepository() {
@@ -40,5 +48,9 @@ public class ECRStack extends Stack {
 
     public Repository getAuditServiceRepository() {
         return auditServiceRepository;
+    }
+
+    public Repository getInvoicesServiceRepository() {
+        return invoicesServiceRepository;
     }
 }
