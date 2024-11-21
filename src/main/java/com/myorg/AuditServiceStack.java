@@ -156,9 +156,9 @@ public class AuditServiceStack extends Stack {
                         .memoryLimitMiB(896)
                         .build()); //新增一個容器
 
-//為AWS X-Ray單獨分配一個容器，不應該把AWS X-Ray放入其他容器，會造成爭奪資源的情況。
+        //為AWS X-Ray單獨分配一個容器，不應該把AWS X-Ray放入其他容器，會造成爭奪資源的情況。
         fargateTaskDefinition.addContainer("xray", ContainerDefinitionOptions.builder()
-                .image(ContainerImage.fromRegistry("public.ecr.aws/xray/aws-xray-dae    mon:latest"))
+                .image(ContainerImage.fromRegistry("public.ecr.aws/xray/aws-xray-daemon:latest"))
                 .containerName("XRayAuditService")
                 .logging(new AwsLogDriver(AwsLogDriverProps.builder()
                         .logGroup(new LogGroup(this, "XRayLogGroup", LogGroupProps.builder()

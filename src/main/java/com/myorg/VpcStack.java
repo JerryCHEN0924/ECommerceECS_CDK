@@ -19,7 +19,7 @@ public class VpcStack extends Stack {
                 .vpcName("ECommerceVPC")
                 .maxAzs(2)
                 //DO NOT DO THIS IN PROD!! 只是因為練習而節省建立基礎設施的費用，所以特地設定此參數為0。
-//                .natGateways(0)
+                .natGateways(0)
                 .build());
     }
 
